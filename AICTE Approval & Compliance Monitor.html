@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en" data-theme="abyss">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AICTE Approval &amp; Compliance Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root{--fd:'Space Grotesk',system-ui,sans-serif;--fb:'Manrope',system-ui,sans-serif}
+[data-theme=abyss]{--bg:#02080c;--panel:rgba(5,18,26,.82);--line:rgba(133,205,220,.18);--text:#eaf6f7;--muted:#9bb2b9;--accent:#5de1ee;--on:#021419;--bad:#ff7a7a;--warn:#ffc46b;--ok:#6fe3a4;color-scheme:dark}
+[data-theme=daylight]{--bg:#f4f8fb;--panel:rgba(255,255,255,.86);--line:rgba(12,26,36,.14);--text:#0c1a24;--muted:#4a5f69;--accent:#1456d6;--on:#fff;--bad:#c42b2b;--warn:#8a5a00;--ok:#16794a;color-scheme:light}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:400 14px/1.55 var(--fb);transition:background-color .6s,color .6s}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+#gl{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px clamp(14px,4vw,48px);background:var(--panel);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+header b{font:600 17px var(--fd)}header b i{color:var(--accent);font-style:normal}
+.ctl{display:flex;gap:10px;align-items:center}
+select,button{font:500 13px var(--fb);color:var(--text);background:transparent;border:1px solid var(--line);border-radius:10px;padding:7px 11px;cursor:pointer}
+select option{color:#000}button:hover,select:hover{border-color:var(--accent)}button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.pri{background:var(--accent);color:var(--on);border-color:var(--accent);font-weight:600}
+main{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:28px clamp(14px,4vw,48px) 80px}
+h1{font:600 clamp(30px,5vw,54px)/1.05 var(--fd);letter-spacing:-.02em;margin:10px 0 8px}h1 span{color:var(--accent)}
+.sub{color:var(--muted);max-width:640px;margin:0 0 6px}.tag{font:500 11px ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+nav{display:flex;gap:6px;overflow-x:auto;margin:22px 0 16px;padding-bottom:4px}nav button{white-space:nowrap}nav button[aria-pressed=true]{background:var(--accent);color:var(--on);border-color:var(--accent)}
+.glass{background:var(--panel);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(14px);padding:20px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}.two{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:14px}
+.k{font:600 36px var(--fd)}.k small{font:500 12px var(--fb);color:var(--muted);display:block}
+h2{font:600 16px var(--fd);margin:0 0 12px}
+.w{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th{font:500 11px ui-monospace,monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:8px;border-bottom:1px solid var(--line)}td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.p{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid currentColor;white-space:nowrap}.bad{color:var(--bad)}.warn{color:var(--warn)}.ok{color:var(--ok)}
+.st{display:inline-block;padding:1px 8px;margin-right:3px;border-radius:6px;border:1px solid var(--line);font-size:12px;color:var(--muted)}.st.on{background:var(--accent);color:var(--on);border-color:var(--accent);font-weight:600}.st.done{color:var(--ok)}
+.bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:4px 0 12px}.bar i{display:block;height:100%;background:var(--accent)}
+.note{color:var(--muted);font-size:12px;margin-top:14px}.row{display:flex;justify-content:space-between;gap:8px}
+@media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<header>
+  <b>AICTE<i>.</i> Approval Monitor</b>
+  <div class="ctl">
+    <label class="tag" for="role">Role</label>
+    <select id="role" aria-label="Role"><option value="Bureau">Bureau officer</option><option value="South">Regional · South</option><option value="North">Regional · North</option><option value="West">Regional · West</option><option value="East">Regional · East</option><option value="Committee">Committee (EVC / SAC)</option></select>
+    <button id="th" aria-label="Toggle light or dark theme">Light / Dark</button>
+  </div>
+</header>
+<main>
+  <div class="tag">Demo data · as of 25 Oct 2026 · not live AICTE records</div>
+  <h1>Every approval, every deadline,<br><span>one live view.</span></h1>
+  <p class="sub">Routing, EVC scheduling, undertakings and lease validity with automatic alerts and escalation. Alerts support officers; decisions stay with the competent authority.</p>
+  <nav id="nav" aria-label="Sections"></nav>
+  <div id="view" aria-live="polite"></div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+/* ---------- data (mock) ---------- */
+var R={S:['Scrutiny'],SE:['Scrutiny','EVC'],ES:['EVC','SAC/SHC'],E:['EVC'],SES:['Scrutiny','EVC','SAC/SHC']};
+var SLA={'Scrutiny':15,'EVC':30,'SAC/SHC':20};
+var A=[['A-2611','Nandi Institute of Technology','South','SE',1,24,6],['A-2612','Rajmata College of Engineering','West','S',0,17,0],['A-2613','Himalaya Polytechnic','North','ES',0,9,12],['A-2614','Kaveri School of Management','South','SES',2,22,0],['A-2615','Gangetic Institute of Pharmacy','East','SE',0,6,0],['A-2616','Thar Technical Campus','North','E',0,34,-4],['A-2617','Konkan Architecture Institute','West','SE',1,12,18],['A-2618','Brahmaputra Engineering College','East','ES',1,5,0],['A-2619','Deccan Institute of Computing','South','S',0,14,0],['A-2620','Malwa Polytechnic','West','E',0,18,26],['A-2621','Sundarban Tech University','East','SES',1,27,-9],['A-2622','Punjab Institute of Design','North','SE',0,3,0]].map(function(a){return{id:a[0],inst:a[1],reg:a[2],rt:a[3],i:a[4],age:a[5],evc:a[6]}});
+var U=[['Nandi Institute of Technology','South','Complete fire-safety NOC',-12,0],['Himalaya Polytechnic','North','Appoint 4 faculty members',9,0],['Konkan Architecture Institute','West','Library accreditation proof',22,1],['Sundarban Tech University','East','Laboratory equipment evidence',-3,1],['Malwa Polytechnic','West','Playground land mutation',41,0],['Deccan Institute of Computing','South','Deposit corpus fund',14,0]].map(function(u){return{inst:u[0],reg:u[1],t:u[2],d:u[3],s:u[4]}});
+var D=[['Rajmata College of Engineering','West','Campus lease deed',-5,0],['Thar Technical Campus','North','Campus lease deed',12,0],['Gangetic Institute of Pharmacy','East','Hostel lease',58,0],['Kaveri School of Management','South','Campus lease deed',6,1],['Punjab Institute of Design','North','Lease registration',-22,0],['Brahmaputra Engineering College','East','Campus lease deed',140,0]].map(function(u){return{inst:u[0],reg:u[1],t:u[2],d:u[3],s:u[4]}});
+var US=['Pending','Submitted','Verified'],LOG=[{t:'25 Oct · 09:00',who:'System',x:'Nightly deadline scan completed for all regions'}];
+var role='Bureau',tab='ov';
+var TABS=[['ov','Overview'],['ap','Applications'],['evc','EVC queue'],['un','Undertakings'],['dc','Lease & documents'],['es','Escalations'],['lg','Audit trail']];
+/* ---------- helpers ---------- */
+function stage(a){return R[a.rt][a.i]||null}
+function left(a){return SLA[stage(a)]-a.age}
+function sev(d){return d<0?'bad':d<=15?'warn':'ok'}
+function pill(d){return '<span class="p '+sev(d)+'">'+(d<0?(-d)+'d overdue':d+'d left')+'</span>'}
+function lvl(d){return d<-7?'L3 · Bureau':d<0?'L2 · Regional':d<=15?'L1 · Institution':'—'}
+function vis(reg,st){return role==='Bureau'||role===reg||(role==='Committee'&&(!st&&st!==null||st==='EVC'||st==='SAC/SHC'))}
+function log(x){LOG.unshift({t:'25 Oct · '+new Date().toTimeString().slice(0,5),who:roleName(),x:x})}
+function roleName(){var s=document.getElementById('role');return s.options[s.selectedIndex].text}
+function apps(){return A.filter(function(a){return stage(a)!==null&&vis(a.reg,stage(a))})}
+function evcs(){return apps().filter(function(a){return stage(a)==='EVC'})}
+function ul(){return U.filter(function(u){return role==='Committee'||vis(u.reg)})}
+function dl(){return D.filter(function(u){return role==='Committee'||vis(u.reg)})}
+function items(){var o=[];
+  apps().forEach(function(a){var d=left(a);o.push({k:'Stage: '+stage(a),i:a.inst,d:d,r:a.reg})});
+  evcs().forEach(function(a){o.push({k:'EVC visit',i:a.inst,d:a.evc,r:a.reg})});
+  ul().forEach(function(u){if(u.s<2)o.push({k:'Undertaking',i:u.inst,d:u.d,r:u.reg})});
+  dl().forEach(function(u){if(u.s<2)o.push({k:'Document',i:u.inst,d:u.d,r:u.reg})});
+  return o.sort(function(a,b){return a.d-b.d})}
+function table(h,rows){return '<div class="w"><table><thead><tr>'+h.map(function(x){return '<th>'+x+'</th>'}).join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>'}
+function chips(a){return R[a.rt].map(function(s,j){return '<span class="st '+(j<a.i?'done':j===a.i?'on':'')+'">'+s+'</span>'}).join('')}
+/* ---------- views ---------- */
+var V={
+ov:function(){var ap=apps(),od=ap.filter(function(a){return left(a)<0}).length,ev=evcs().filter(function(a){return a.evc<=15}).length,un=ul().filter(function(u){return u.s<2&&u.d<=15}).length,dc=dl().filter(function(u){return u.s<2&&u.d<=15}).length;
+  window.__od=od+un+dc;
+  var k=[['Open applications',ap.length],['Stage overdue',od],['EVCs due ≤ 15 days',ev],['Undertakings at risk',un],['Documents expiring/expired',dc]].map(function(x){return '<div class="glass"><div class="k">'+x[1]+'<small>'+x[0]+'</small></div></div>'}).join('');
+  var st=['Scrutiny','EVC','SAC/SHC'].map(function(s){var n=ap.filter(function(a){return stage(a)===s}).length;return '<div class="row"><span>'+s+'</span><b>'+n+'</b></div><div class="bar"><i style="width:'+(n/Math.max(1,ap.length)*100)+'%"></i></div>'}).join('');
+  var rg=['North','South','East','West'].map(function(r){var n=ap.filter(function(a){return a.reg===r}).length,o=ap.filter(function(a){return a.reg===r&&left(a)<0}).length;return '<div class="row"><span>'+r+' region</span><span>'+n+' open · <span class="bad">'+o+' overdue</span></span></div><div class="bar"><i style="width:'+(n/Math.max(1,ap.length)*100)+'%"></i></div>'}).join('');
+  var top=items().slice(0,5).map(function(x){return '<tr><td>'+x.k+'</td><td>'+x.i+'</td><td>'+pill(x.d)+'</td><td>'+lvl(x.d)+'</td></tr>'}).join('');
+  return '<div class="grid">'+k+'</div><div class="grid two"><div class="glass"><h2>Stage-wise pendency</h2>'+st+'</div><div class="glass"><h2>Region-wise processing</h2>'+rg+'</div></div><div class="glass" style="margin-top:14px"><h2>Most urgent</h2>'+table(['Item','Institution','Timeline','Escalation level'],[top])+'</div>'},
+ap:function(){return '<div class="glass"><h2>Applications · automatic routing</h2>'+table(['ID','Institution','Route','Days in stage','Timeline','Action'],apps().map(function(a,j){var last=a.i===R[a.rt].length-1;
+  return '<tr><td>'+a.id+'</td><td>'+a.inst+'<br><span class="tag">'+a.reg+'</span></td><td>'+chips(a)+'</td><td>'+a.age+' / '+SLA[stage(a)]+'</td><td>'+pill(left(a))+'</td><td><button data-a="adv" data-id="'+a.id+'" class="pri">'+(last?'Forward for decision':'Complete stage')+'</button> <select aria-label="Return reason"><option>Deficiency</option><option>Clarification</option><option>Further verification</option></select><button data-a="ret" data-id="'+a.id+'">Return</button></td></tr>'})) +'<p class="note">Completing a stage moves the file to the next prescribed stage. The final stage forwards it to the competent authority, which takes the decision. Returns record a reason in the audit trail.</p></div>'},
+evc:function(){return '<div class="glass"><h2>EVC queue · scheduling and alerts</h2>'+table(['ID','Institution','Region','Visit due','Escalation'],evcs().sort(function(a,b){return a.evc-b.evc}).map(function(a){return '<tr><td>'+a.id+'</td><td>'+a.inst+'</td><td>'+a.reg+'</td><td>'+pill(a.evc)+'</td><td>'+lvl(a.evc)+'</td></tr>'}))+'<p class="note">Applications enter this queue automatically after preliminary scrutiny.</p></div>'},
+un:function(){return '<div class="glass"><h2>Time-bound undertakings</h2>'+table(['Institution','Condition','Due','Status','Evidence'],ul().map(function(u,j){return '<tr><td>'+u.inst+'</td><td>'+u.t+'</td><td>'+(u.s<2?pill(u.d):'<span class="p ok">Closed</span>')+'</td><td>'+US[u.s]+'</td><td>'+(u.s<2?'<button data-a="un" data-i="'+U.indexOf(u)+'">'+(u.s===0?'Institution uploads':'Officer verifies')+'</button>':'—')+'</td></tr>'}))+'</div>'},
+dc:function(){return '<div class="glass"><h2>Lease and document validity</h2>'+table(['Institution','Document','Expiry','Status','Renewal'],dl().map(function(u){return '<tr><td>'+u.inst+'</td><td>'+u.t+'</td><td>'+(u.s<2?pill(u.d):'<span class="p ok">Renewed</span>')+'</td><td>'+(u.d<0&&u.s<2?'Expired':US[u.s])+'</td><td>'+(u.s<2?'<button data-a="dc" data-i="'+D.indexOf(u)+'">'+(u.s===0?'Institution uploads':'Officer verifies')+'</button>':'—')+'</td></tr>'}))+'</div>'},
+es:function(){var it=items().filter(function(x){return x.d<=15});return '<div class="glass"><div class="row"><h2>Alerts and escalation ladder</h2><button class="pri" data-a="sweep">Run alert sweep</button></div>'+table(['Item','Institution','Region','Timeline','Level'],it.map(function(x){return '<tr><td>'+x.k+'</td><td>'+x.i+'</td><td>'+x.r+'</td><td>'+pill(x.d)+'</td><td>'+lvl(x.d)+'</td></tr>'}))+'<p class="note">L1: reminder to institution within 15 days · L2: Regional officer when overdue · L3: Bureau when overdue by more than 7 days. Thresholds are configurable.</p></div>'},
+lg:function(){return '<div class="glass"><h2>Audit trail</h2>'+table(['When','Actor','Event'],LOG.map(function(l){return '<tr><td>'+l.t+'</td><td>'+l.who+'</td><td>'+l.x+'</td></tr>'}))+'</div>'}};
+function render(){document.getElementById('view').innerHTML=V[tab]();
+  Array.prototype.forEach.call(document.querySelectorAll('#nav button'),function(b){b.setAttribute('aria-pressed',String(b.dataset.t===tab))})}
+var nav=document.getElementById('nav');
+TABS.forEach(function(t){var b=document.createElement('button');b.dataset.t=t[0];b.textContent=t[1];b.onclick=function(){tab=t[0];render()};nav.appendChild(b)});
+document.getElementById('role').onchange=function(e){role=e.target.value;render()};
+document.getElementById('view').addEventListener('click',function(e){var b=e.target.closest('button[data-a]');if(!b)return;var a=b.dataset.a,o;
+  if(a==='adv'||a==='ret'){o=A.filter(function(x){return x.id===b.dataset.id})[0];
+    if(a==='adv'){var from=stage(o);o.i++;o.age=0;log(o.id+': '+from+' completed → '+(stage(o)?'moved to '+stage(o):'forwarded to competent authority for decision'))}
+    else{var why=b.parentNode.querySelector('select').value;o.i=Math.max(0,o.i-1);o.age=0;log(o.id+': returned to '+stage(o)+' · reason: '+why)}}
+  if(a==='un'||a==='dc'){o=(a==='un'?U:D)[+b.dataset.i];o.s++;if(o.s===2&&a==='dc')o.d=365;log(o.inst+': '+o.t+' '+(o.s===1?'submitted by institution':'verified by officer'))}
+  if(a==='sweep'){var n=items().filter(function(x){return x.d<=15});n.forEach(function(x){log(lvl(x.d).split(' ')[0]+' sent: '+x.k+' · '+x.i)});if(!n.length)log('Sweep: no pending alerts')}
+  render()});
+/* ---------- 3D: themed backdrop, drifting particles, stage rings ---------- */
+var TH={abyss:{bg:'#02080c',c1:'#04202c',c2:'#0b5a6b',c3:'#7ff3ff',dots:'#7fe9ef',add:true},daylight:{bg:'#f4f8fb',c1:'#dbe9f6',c2:'#a9c8f2',c3:'#ffffff',dots:'#2f6fe0',add:false}};
+var canvas=document.getElementById('gl'),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,renderer;
+document.getElementById('th').onclick=function(){setTheme(document.documentElement.dataset.theme==='abyss'?'daylight':'abyss')};
+var cur={},tgt={},ring=[],pMat;
+try{renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,alpha:false})}catch(e){renderer=null}
+function setTheme(id){document.documentElement.dataset.theme=id;if(!renderer)return;var t=TH[id];Object.keys(tgt).forEach(function(k){tgt[k].set(t[k])});pMat.blending=t.add?THREE.AdditiveBlending:THREE.NormalBlending;pMat.needsUpdate=true}
+if(renderer){
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75));
+var scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,.1,100);cam.position.z=7;
+['bg','c1','c2','c3','dots'].forEach(function(k){cur[k]=new THREE.Color(TH.abyss[k]);tgt[k]=new THREE.Color(TH.abyss[k])});
+var NZ='float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(h21(i),h21(i+vec2(1.0,0.0)),f.x),mix(h21(i+vec2(0.0,1.0)),h21(i+vec2(1.0,1.0)),f.x),f.y);}float fbm(vec2 p){float s=0.0,a=0.5;for(int i=0;i<4;i++){s+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=0.5;}return s;}';
+var bgM=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{uT:{value:0},uA:{value:1.6},uM:{value:new THREE.Vector2()},uBg:{value:cur.bg},uC1:{value:cur.c1},uC2:{value:cur.c2},uC3:{value:cur.c3}},
+ vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.9999,1.0);}',
+ fragmentShader:'varying vec2 vUv;uniform float uT,uA;uniform vec2 uM;uniform vec3 uBg,uC1,uC2,uC3;'+NZ+'void main(){vec2 p=(vUv-0.5)*vec2(uA,1.0)*2.2+uM*0.15;float t=uT*0.04;vec2 q=vec2(fbm(p+vec2(0.0,t)),fbm(p+vec2(5.2,1.3)-t));float f=fbm(p+3.0*q);vec3 c=mix(uBg,uC1,smoothstep(0.1,0.6,f));c=mix(c,uC2,smoothstep(0.45,0.95,f)*0.7);c+=uC3*pow(smoothstep(0.55,1.0,length(q)),3.0)*0.18;c*=1.0-0.4*smoothstep(0.35,1.1,length(vUv-0.5)*1.4);c+=(h21(gl_FragCoord.xy+uT)-0.5)/255.0;gl_FragColor=vec4(c,1.0);}'});
+var bg=new THREE.Mesh(new THREE.PlaneGeometry(2,2),bgM);bg.frustumCulled=false;bg.renderOrder=-10;scene.add(bg);
+var N=matchMedia('(pointer: coarse)').matches?300:700,pos=new Float32Array(N*3),sd=new Float32Array(N);
+for(var i=0;i<N;i++){pos[i*3]=(Math.random()-.5)*16;pos[i*3+1]=(Math.random()-.5)*10;pos[i*3+2]=(Math.random()-.5)*14-1;sd[i]=Math.random()}
+var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('aSeed',new THREE.BufferAttribute(sd,1));
+pMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{uT:{value:0},uP:{value:0},uS:{value:900},uC:{value:cur.dots}},
+ vertexShader:'attribute float aSeed;uniform float uT,uP,uS;varying float vA;void main(){float y=mod(position.y+5.0+(uT*0.03+uP)*(0.4+aSeed),10.0)-5.0;vec3 p=vec3(position.x+sin(uT*0.2+aSeed*40.0)*0.25,y,position.z);vec4 mv=modelViewMatrix*vec4(p,1.0);gl_Position=projectionMatrix*mv;float d=max(-mv.z,0.1);gl_PointSize=clamp(0.08*(0.4+aSeed)*uS/d,1.0,14.0);float q=d*0.06;vA=(0.3+0.6*aSeed)*exp(-q*q)*(1.0-smoothstep(4.0,5.0,abs(y)));}',
+ fragmentShader:'uniform vec3 uC;varying float vA;void main(){float r=length(gl_PointCoord-0.5)*2.0;float a=1.0-smoothstep(0.0,1.0,r);gl_FragColor=vec4(uC,a*a*vA*0.8);}'});
+var pts=new THREE.Points(pg,pMat);pts.frustumCulled=false;scene.add(pts);
+/* three rings = Scrutiny / EVC / SAC-SHC gates; they swell as overdue items grow */
+[1.2,1.8,2.4].forEach(function(r,j){var m=new THREE.Mesh(new THREE.TorusGeometry(r,.012,8,96),new THREE.MeshBasicMaterial({color:cur.dots,transparent:true,opacity:.55}));m.position.set(3.4,0,-2-j*.6);m.rotation.x=1.1;scene.add(m);ring.push(m)});
+var m={p:0,v:0,mx:0,my:0},lastY=scrollY,push=0,sc=1;
+addEventListener('scroll',function(){var dy=scrollY-lastY;lastY=scrollY;if(!reduced)m.v=Math.min(3,Math.abs(dy)*.03)},{passive:true});
+addEventListener('mousemove',function(e){m.mx=(e.clientX/innerWidth-.5)*2;m.my=(e.clientY/innerHeight-.5)*2},{passive:true});
+function resize(){var w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();bgM.uniforms.uA.value=w/h;pMat.uniforms.uS.value=h*renderer.getPixelRatio()*.5/Math.tan(25*Math.PI/180);ring.forEach(function(r){r.visible=w>760})}
+addEventListener('resize',resize);resize();
+var clock=new THREE.Clock(),raf=0;
+function frame(){raf=requestAnimationFrame(frame);var dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime,k=1-Math.exp(-dt*4);
+ Object.keys(cur).forEach(function(c){cur[c].lerp(tgt[c],k)});m.v*=.9;if(m.v<.01)m.v=0;push+=reduced?0:m.v*dt*.8;var T=reduced?0:t;
+ bgM.uniforms.uT.value=T;bgM.uniforms.uM.value.set(m.mx,-m.my);pMat.uniforms.uT.value=T;pMat.uniforms.uP.value=push;
+ sc+=((1+Math.min(window.__od||0,12)*.03)-sc)*k;
+ ring.forEach(function(r,j){r.rotation.z+=reduced?0:dt*(.08+j*.04+m.v*.3);r.scale.setScalar(sc);r.material.opacity=.55});
+ cam.position.x+=(m.mx*.4*(reduced?0:1)-cam.position.x)*(1-Math.exp(-dt*3));cam.lookAt(0,0,0);renderer.render(scene,cam)}
+frame();
+document.addEventListener('visibilitychange',function(){if(document.hidden)cancelAnimationFrame(raf);else{clock.getDelta();frame()}});
+}
+render();
+})();
+</script>
+</body>
+</html>
