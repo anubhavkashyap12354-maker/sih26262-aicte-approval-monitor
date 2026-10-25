@@ -1,5 +1,10 @@
-// API Client pointing to http://localhost:8000/api
-const BASE_URL = 'http://localhost:8000/api';
+// API Client configured for both local development and Vercel production
+const BASE_URL =
+  import.meta.env?.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : typeof window !== 'undefined' && !import.meta.env?.DEV
+    ? `${window.location.origin}/api`
+    : 'http://localhost:8000/api';
 
 /**
  * Helper to perform fetch requests with error handling
@@ -135,8 +140,11 @@ export async function getOverviewMetrics(params = {}) {
 // ------------------- System Health -------------------
 export async function checkHealth() {
   try {
-    const res = await fetch('http://localhost:8000/health');
-    return res.ok;
+    const healthUrl = `${BASE_URL.replace(/\/api$/, '')}/api/health`;
+    const res = await fetch(healthUrl);
+    if (res.ok) return true;
+    const fallback = await fetch('http://localhost:8000/health');
+    return fallback.ok;
   } catch {
     return false;
   }

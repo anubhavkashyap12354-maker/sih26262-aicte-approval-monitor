@@ -1,11 +1,17 @@
 import type { Application, Undertaking, LeaseAndDocument, AuditLog, OverviewMetrics, Role, AphRulesConfig } from './types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && !import.meta.env.DEV
+    ? window.location.origin
+    : 'http://localhost:8000');
 
 export async function checkBackendHealth(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
-    return res.ok;
+    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) return true;
+    const fallback = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
+    return fallback.ok;
   } catch {
     return false;
   }
