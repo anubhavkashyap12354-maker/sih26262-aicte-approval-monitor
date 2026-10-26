@@ -4,6 +4,22 @@ import api from './api';
 import { ToastContainer, type ToastData } from './components/Toast';
 import { AphRulesModal } from './components/AphRulesModal';
 import type { AphRulesConfig } from './types';
+import {
+  StageDistributionDonut,
+  RegionalComplianceBarChart,
+  SLAComplianceGauge,
+  RouteWorkflowChart,
+  UrgencyBreakdownChart,
+} from './components/Charts';
+import {
+  FileText,
+  AlertTriangle,
+  Calendar,
+  ShieldAlert,
+  Clock,
+  Download,
+  Sparkles,
+} from 'lucide-react';
 
 // Route stage definitions & SLAs from original frontend
 const R: Record<string, string[]> = {
@@ -854,105 +870,165 @@ export function App() {
     const un = ul.filter((u) => u.s < 2 && u.d <= 15).length;
     const dc = dl.filter((u) => u.s < 2 && u.d <= 15).length;
 
-    const cards = [
-      ['Open applications', ap.length],
-      ['Stage overdue', od],
-      ['EVCs due ≤ 15 days', ev],
-      ['Undertakings at risk', un],
-      ['Documents expiring/expired', dc],
+    const kpiCards = [
+      {
+        label: 'Open Applications',
+        value: ap.length,
+        icon: FileText,
+        colorClass: 'cyan',
+        trend: `${ap.length} active`,
+        trendClass: 'ok',
+      },
+      {
+        label: 'Stage Overdue',
+        value: od,
+        icon: AlertTriangle,
+        colorClass: 'red',
+        trend: od > 0 ? `${od} breaches` : 'All in SLA',
+        trendClass: od > 0 ? 'bad' : 'ok',
+      },
+      {
+        label: 'EVCs Due ≤ 15d',
+        value: ev,
+        icon: Calendar,
+        colorClass: 'amber',
+        trend: ev > 0 ? `${ev} urgent` : 'On track',
+        trendClass: ev > 0 ? 'warn' : 'ok',
+      },
+      {
+        label: 'Undertakings at Risk',
+        value: un,
+        icon: ShieldAlert,
+        colorClass: 'purple',
+        trend: un > 0 ? `${un} pending` : 'Compliant',
+        trendClass: un > 0 ? 'warn' : 'ok',
+      },
+      {
+        label: 'Docs Expiring/Expired',
+        value: dc,
+        icon: Clock,
+        colorClass: 'red',
+        trend: dc > 0 ? `${dc} critical` : 'All valid',
+        trendClass: dc > 0 ? 'bad' : 'ok',
+      },
     ];
 
     const topItems = items.slice(0, 5);
 
     return (
       <>
+        {/* Glassmorphic KPI Metric Tiles */}
         <div className="grid">
-          {cards.map((x, idx) => (
-            <div key={idx} className="glass">
-              <div className="k">
-                {x[1]}
-                <small>{x[0]}</small>
+          {kpiCards.map((c, idx) => {
+            const Icon = c.icon;
+            return (
+              <div key={idx} className="glass-stat">
+                <div className="glass-stat-top">
+                  <span className={`glass-stat-icon ${c.colorClass}`}>
+                    <Icon size={18} />
+                  </span>
+                  <span className={`glass-stat-trend ${c.trendClass}`}>
+                    {c.trend}
+                  </span>
+                </div>
+                <div>
+                  <div className="glass-stat-value">{c.value}</div>
+                  <span className="glass-stat-label">{c.label}</span>
+                </div>
               </div>
+            );
+          })}
+        </div>
+
+        {/* Primary Interactive Charts */}
+        <div className="charts-grid-main">
+          <StageDistributionDonut
+            apps={apps}
+            ul={ul}
+            dl={dl}
+            stageFn={stage}
+            leftFn={left}
+            theme={theme}
+          />
+          <RegionalComplianceBarChart
+            apps={apps}
+            ul={ul}
+            dl={dl}
+            stageFn={stage}
+            leftFn={left}
+            theme={theme}
+          />
+        </div>
+
+        {/* Secondary Workflow & SLA Metrics */}
+        <div className="charts-grid-secondary">
+          <SLAComplianceGauge
+            apps={apps}
+            ul={ul}
+            dl={dl}
+            stageFn={stage}
+            leftFn={left}
+            theme={theme}
+          />
+          <RouteWorkflowChart
+            apps={apps}
+            ul={ul}
+            dl={dl}
+            stageFn={stage}
+            leftFn={left}
+            theme={theme}
+          />
+          <UrgencyBreakdownChart items={items} />
+        </div>
+
+        {/* Action Priority Table */}
+        <div className="glass" style={{ marginTop: '16px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              flexWrap: 'wrap',
+              gap: '10px',
+            }}
+          >
+            <div>
+              <h2 style={{ margin: 0 }}>Critical Action Queue & Escalation Matrix</h2>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                Prioritized institutions requiring immediate statutory intervention or follow-up
+              </span>
             </div>
-          ))}
-        </div>
-
-        <div className="grid two">
-          <div className="glass">
-            <h2>Stage-wise pendency</h2>
-            {['Scrutiny', 'EVC', 'SAC/SHC'].map((s) => {
-              const n = ap.filter((a) => stage(a) === s).length;
-              return (
-                <div key={s}>
-                  <div className="row">
-                    <span>{s}</span>
-                    <b>{n}</b>
-                  </div>
-                  <div className="bar">
-                    <i
-                      style={{
-                        width: `${(n / Math.max(1, ap.length)) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="glass">
-            <h2>Region-wise processing</h2>
-            {['North', 'South', 'East', 'West'].map((r) => {
-              const n = ap.filter((a) => a.reg === r).length;
-              const o = ap.filter((a) => a.reg === r && left(a) < 0).length;
-              return (
-                <div key={r}>
-                  <div className="row">
-                    <span>{r} region</span>
-                    <span>
-                      {n} open · <span className="bad">{o} overdue</span>
-                    </span>
-                  </div>
-                  <div className="bar">
-                    <i
-                      style={{
-                        width: `${(n / Math.max(1, ap.length)) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="glass" style={{ marginTop: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-            <h2 style={{ margin: 0 }}>Most urgent items</h2>
             <button
               className="btn-export"
               onClick={handleExportCsv}
               disabled={actionLoading === 'export-csv'}
               title="Generate and download CSV summary report of regional pendencies and overdue metrics"
             >
-              {actionLoading === 'export-csv' ? '⏳ Generating...' : '📥 Export Pendency Report (CSV)'}
+              <Download size={14} style={{ marginRight: '4px' }} />
+              {actionLoading === 'export-csv' ? 'Generating...' : 'Export Pendency Report (CSV)'}
             </button>
           </div>
-          <div className="w">
 
+          <div className="w">
             <table>
               <thead>
                 <tr>
-                  <th>Item</th>
-                  <th>Institution</th>
-                  <th>Timeline</th>
-                  <th>Escalation level</th>
+                  <th>Compliance Item</th>
+                  <th>Institution Name</th>
+                  <th>Statutory Timeline</th>
+                  <th>Escalation Level</th>
                 </tr>
               </thead>
               <tbody>
                 {topItems.map((x, idx) => (
                   <tr key={idx}>
-                    <td>{x.k}</td>
+                    <td>
+                      <strong>{x.k}</strong>
+                      <span className="tag" style={{ marginLeft: '8px' }}>
+                        {x.r}
+                      </span>
+                    </td>
                     <td>{x.i}</td>
                     <td>{pill(x.d)}</td>
                     <td>{lvl(x.d)}</td>
@@ -967,9 +1043,30 @@ export function App() {
   };
 
   const renderApplications = () => {
+    const totalApps = apps.length;
+    const scrutinyApps = apps.filter((a) => stage(a) === 'Scrutiny').length;
+    const evcApps = apps.filter((a) => stage(a) === 'EVC').length;
+    const sacApps = apps.filter((a) => stage(a) === 'SAC/SHC').length;
+    const overdueApps = apps.filter((a) => left(a) < 0).length;
+
     return (
       <div className="glass">
-        <h2>Applications · automatic routing</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h2 style={{ margin: 0 }}>Applications · Automatic Route Workflow</h2>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              Stage advancement, deficiency tracking, and escalation routing
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <span className="badge-glass">Total: {totalApps}</span>
+            <span className="badge-glass">Scrutiny: {scrutinyApps}</span>
+            <span className="badge-glass">EVC: {evcApps}</span>
+            <span className="badge-glass">SAC/SHC: {sacApps}</span>
+            {overdueApps > 0 && <span className="badge-glass danger">{overdueApps} Overdue</span>}
+          </div>
+        </div>
+
         <div className="w">
           <table>
             <thead>
@@ -992,7 +1089,7 @@ export function App() {
 
                 return (
                   <tr key={a.id}>
-                    <td>{a.id}</td>
+                    <td><strong>{a.id}</strong></td>
                     <td>
                       {a.inst}
                       <br />
@@ -1056,9 +1153,25 @@ export function App() {
 
   const renderEVCQueue = () => {
     const sortedEvcs = [...evcs].sort((a, b) => a.evc - b.evc);
+    const urgentEvcs = sortedEvcs.filter((a) => a.evc <= 15).length;
+    const overdueEvcs = sortedEvcs.filter((a) => a.evc < 0).length;
+
     return (
       <div className="glass">
-        <h2>EVC queue · scheduling and alerts</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h2 style={{ margin: 0 }}>EVC Queue · Scheduling and Alerts</h2>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              On-site & virtual inspection timetable monitoring and committee assignments
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <span className="badge-glass">{sortedEvcs.length} Scheduled</span>
+            <span className="badge-glass">Due ≤ 15d: {urgentEvcs}</span>
+            {overdueEvcs > 0 && <span className="badge-glass danger">{overdueEvcs} Overdue</span>}
+          </div>
+        </div>
+
         <div className="w">
           <table>
             <thead>
@@ -1073,9 +1186,9 @@ export function App() {
             <tbody>
               {sortedEvcs.map((a) => (
                 <tr key={a.id}>
-                  <td>{a.id}</td>
+                  <td><strong>{a.id}</strong></td>
                   <td>{a.inst}</td>
-                  <td>{a.reg}</td>
+                  <td><span className="tag">{a.reg}</span></td>
                   <td>{pill(a.evc)}</td>
                   <td>{lvl(a.evc)}</td>
                 </tr>
@@ -1089,9 +1202,26 @@ export function App() {
   };
 
   const renderUndertakings = () => {
+    const pendingU = ul.filter((u) => u.s === 0).length;
+    const submittedU = ul.filter((u) => u.s === 1).length;
+    const verifiedU = ul.filter((u) => u.s === 2).length;
+
     return (
       <div className="glass">
-        <h2>Time-bound undertakings</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h2 style={{ margin: 0 }}>Time-Bound Statutory Undertakings</h2>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              Conditional approval obligations, fire safety NOC, faculty recruitment, and evidence verification
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <span className="badge-glass">Pending: {pendingU}</span>
+            <span className="badge-glass">Submitted: {submittedU}</span>
+            <span className="badge-glass" style={{ color: 'var(--ok)' }}>Verified: {verifiedU}</span>
+          </div>
+        </div>
+
         <div className="w">
           <table>
             <thead>
@@ -1109,8 +1239,12 @@ export function App() {
                 const isActing = actionLoading === `un-${originalIndex}`;
                 return (
                   <tr key={j}>
-                    <td>{u.inst}</td>
-                    <td>{u.t}</td>
+                    <td>
+                      {u.inst}
+                      <br />
+                      <span className="tag">{u.reg}</span>
+                    </td>
+                    <td><strong>{u.t}</strong></td>
                     <td>{u.s < 2 ? pill(u.d) : <span className="p ok">Closed</span>}</td>
                     <td>{US[u.s]}</td>
                     <td>
@@ -1140,9 +1274,26 @@ export function App() {
   };
 
   const renderDocuments = () => {
+    const activeD = dl.filter((u) => u.s < 2);
+    const expiredD = activeD.filter((u) => u.d < 0).length;
+    const expiringSoon = activeD.filter((u) => u.d >= 0 && u.d <= 30).length;
+
     return (
       <div className="glass">
-        <h2>Lease and document validity</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h2 style={{ margin: 0 }}>Campus Lease Deeds & Document Validity</h2>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              Statutory land registry, campus lease tenure, and renewal deadlines
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <span className="badge-glass">Tracked: {dl.length}</span>
+            <span className="badge-glass">Expiring ≤ 30d: {expiringSoon}</span>
+            {expiredD > 0 && <span className="badge-glass danger">{expiredD} Expired</span>}
+          </div>
+        </div>
+
         <div className="w">
           <table>
             <thead>
@@ -1160,10 +1311,14 @@ export function App() {
                 const isActing = actionLoading === `dc-${originalIndex}`;
                 return (
                   <tr key={j}>
-                    <td>{u.inst}</td>
-                    <td>{u.t}</td>
+                    <td>
+                      {u.inst}
+                      <br />
+                      <span className="tag">{u.reg}</span>
+                    </td>
+                    <td><strong>{u.t}</strong></td>
                     <td>{u.s < 2 ? pill(u.d) : <span className="p ok">Renewed</span>}</td>
-                    <td>{u.d < 0 && u.s < 2 ? 'Expired' : US[u.s]}</td>
+                    <td>{u.d < 0 && u.s < 2 ? <span className="p bad">Expired</span> : US[u.s]}</td>
                     <td>
                       {u.s < 2 ? (
                         <button
@@ -1193,13 +1348,27 @@ export function App() {
   const renderEscalations = () => {
     const it = items.filter((x) => x.d <= 15);
     const isSweeping = actionLoading === 'sweep';
+    const l1Count = it.filter((x) => x.d > 0 && x.d <= 15).length;
+    const l2Count = it.filter((x) => x.d <= 0 && x.d >= -7).length;
+    const l3Count = it.filter((x) => x.d < -7).length;
+
     return (
       <div className="glass">
-        <div className="row">
-          <h2>Alerts and escalation ladder</h2>
-          <button onClick={handleSweep} disabled={isSweeping} className="pri">
-            {isSweeping ? 'Running sweep...' : 'Run alert sweep'}
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h2 style={{ margin: 0 }}>Multi-Tier Escalation Ladder & Automated Alerts</h2>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              L1 Institution Notices · L2 Regional Intervention · L3 Bureau Escalations
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="badge-glass">L1 (≤15d): {l1Count}</span>
+            <span className="badge-glass" style={{ color: 'var(--warn)' }}>L2 Overdue: {l2Count}</span>
+            <span className="badge-glass danger">L3 (&lt;-7d): {l3Count}</span>
+            <button onClick={handleSweep} disabled={isSweeping} className="pri">
+              {isSweeping ? 'Running sweep...' : 'Run alert sweep'}
+            </button>
+          </div>
         </div>
         <div className="w">
           <table>
@@ -1304,6 +1473,7 @@ export function App() {
           </button>
 
           <button id="th" aria-label="Toggle light or dark theme" onClick={toggleTheme}>
+            <Sparkles size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
             {theme === 'abyss' ? 'Daylight' : 'Abyss'}
           </button>
         </div>
@@ -1330,17 +1500,32 @@ export function App() {
           escalation. Alerts support officers; decisions stay with the competent authority.
         </p>
 
-        {/* Section Navigation Tabs */}
+        {/* Section Navigation Tabs with Dynamic Badge Counts */}
         <nav id="nav" aria-label="Sections">
-          {TABS.map((t) => (
-            <button
-              key={t[0]}
-              aria-pressed={tab === t[0]}
-              onClick={() => setTab(t[0])}
-            >
-              {t[1]}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            let countBadge: number | null = null;
+            if (t[0] === 'ap') countBadge = apps.length;
+            else if (t[0] === 'evc') countBadge = evcs.length;
+            else if (t[0] === 'un') countBadge = ul.filter((u) => u.s < 2).length;
+            else if (t[0] === 'dc') countBadge = dl.filter((u) => u.s < 2).length;
+            else if (t[0] === 'es') countBadge = items.filter((x) => x.d <= 15).length;
+
+            return (
+              <button
+                key={t[0]}
+                aria-pressed={tab === t[0]}
+                onClick={() => setTab(t[0])}
+                className="glass-tab-btn"
+              >
+                <span>{t[1]}</span>
+                {countBadge !== null && (
+                  <span className={`tab-count-badge ${t[0] === 'es' && countBadge > 0 ? 'alert' : ''}`}>
+                    {countBadge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Dynamic View Panel */}
