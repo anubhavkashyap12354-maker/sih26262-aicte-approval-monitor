@@ -17,6 +17,7 @@ export interface Application {
   current_stage_index: number;
   age_in_days: number;
   evc_timeline_status: number;
+  is_approved?: boolean;
   institution?: Institution;
 }
 
@@ -51,6 +52,7 @@ export interface OverviewMetrics {
   evcs_due_soon: number;
   undertakings_at_risk: number;
   documents_expiring: number;
+  approved_applications?: number;
 }
 
 export interface AphRulesConfig {
@@ -58,4 +60,3 @@ export interface AphRulesConfig {
   EVC: number;
   'SAC/SHC': number;
 }
-
