@@ -19,6 +19,14 @@ import {
   Clock,
   Download,
   Sparkles,
+  LayoutDashboard,
+  FileCheck,
+  History,
+  CheckCircle2,
+  RotateCcw,
+  Menu,
+  X,
+  Columns,
 } from 'lucide-react';
 
 // Route stage definitions & SLAs from original frontend
@@ -48,8 +56,10 @@ const TABS: Array<[string, string]> = [
   ['lg', 'Audit trail'],
 ];
 
-// Fallback initial data (matching original HTML mock data)
+// Fallback initial data (including already approved sample institutions)
 const INITIAL_A = [
+  ['A-2610', 'Ashoka Institute of Technology', 'South', 'S', 1, 0, 0],
+  ['A-2609', 'Indus Valley College of Engineering', 'North', 'SE', 2, 0, 0],
   ['A-2611', 'Nandi Institute of Technology', 'South', 'SE', 1, 24, 6],
   ['A-2612', 'Rajmata College of Engineering', 'West', 'S', 0, 17, 0],
   ['A-2613', 'Himalaya Polytechnic', 'North', 'ES', 0, 9, 12],
@@ -115,6 +125,11 @@ export function App() {
   const [tab, setTab] = useState<string>('ov');
   const [isLive, setIsLive] = useState<boolean>(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+
+  // View mode inside Applications: split column view, active only, or approved only
+  const [appViewMode, setAppViewMode] = useState<'split' | 'active' | 'approved'>('split');
 
   // Toast notifications state
   const [toasts, setToasts] = useState<ToastData[]>([]);
@@ -137,6 +152,9 @@ export function App() {
   // Return reasons state keyed by application ID
   const [returnReasons, setReturnReasons] = useState<Record<string, string>>({});
 
+  // Revert approval reasons state keyed by application ID
+  const [revertApprovalReasons, setRevertApprovalReasons] = useState<Record<string, string>>({});
+
   // Dynamic APH Rules State
   const [aphRules, setAphRules] = useState<AphRulesConfig>({
     Scrutiny: 15,
@@ -154,24 +172,40 @@ export function App() {
   // Three.js canvas ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Helper functions from original HTML with dynamic APH SLAs
-  const stage = (a: any): string | null => R[a.rt]?.[a.i] || null;
+  // Helper function to check if application has reached final approval
+  const isApproved = (a: any): boolean => {
+    const stages = R[a.rt] || [];
+    return a.i >= stages.length;
+  };
+
+  // Stage helper
+  const stage = (a: any): string | null => {
+    const stages = R[a.rt] || [];
+    if (a.i >= stages.length) return 'Approved';
+    return stages[a.i] || null;
+  };
+
   const left = useCallback(
     (a: any) => {
-      const s = stage(a);
+      if (isApproved(a)) return 999;
+      const s = R[a.rt]?.[a.i];
       if (!s) return 0;
       const slaLimit = aphRules[s as keyof AphRulesConfig] ?? SLA[s] ?? 15;
       return slaLimit - a.age;
     },
     [aphRules]
   );
-  const sev = (d: number) => (d < 0 ? 'bad' : d <= 15 ? 'warn' : 'ok');
-  const pill = (d: number) => (
-    <span className={`p ${sev(d)}`}>{d < 0 ? `${-d}d overdue` : `${d}d left`}</span>
-  );
-  const lvl = (d: number) =>
-    d < -7 ? 'L3 · Bureau' : d < 0 ? 'L2 · Regional' : d <= 15 ? 'L1 · Institution' : '—';
 
+  const sev = (d: number) => (d < 0 ? 'bad' : d <= 15 ? 'warn' : 'ok');
+  const pill = (d: number) => {
+    if (d === 999) return <span className="p ok">Approved · LOA</span>;
+    return <span className={`p ${sev(d)}`}>{d < 0 ? `${-d}d overdue` : `${d}d left`}</span>;
+  };
+
+  const lvl = (d: number) => {
+    if (d === 999) return 'Granted';
+    return d < -7 ? 'L3 · Bureau' : d < 0 ? 'L2 · Regional' : d <= 15 ? 'L1 · Institution' : '—';
+  };
 
   // Role display label
   const roleName = useMemo(() => {
@@ -197,29 +231,32 @@ export function App() {
   // RBAC Filtering for Applications, Undertakings, and Documents
   // -------------------------------------------------------------
 
-  // 1. Applications RBAC filter:
-  // - Bureau: Views all regions and all data
-  // - Regional Officers: View only data in their assigned region
-  // - Committee: Views items exclusively in the EVC / SAC processing queues
   const apps = useMemo(() => {
     return A.filter((a) => {
-      const s = stage(a);
-      if (s === null) return false;
       if (role === 'Bureau') return true;
-      if (role === 'Committee') return s === 'EVC' || s === 'SAC/SHC';
+      if (role === 'Committee') {
+        const s = R[a.rt]?.[a.i];
+        return s === 'EVC' || s === 'SAC/SHC';
+      }
       return a.reg === role;
     });
   }, [A, role]);
 
+  // Active in-progress applications
+  const activeApps = useMemo(() => {
+    return apps.filter((a) => !isApproved(a));
+  }, [apps]);
+
+  // Approved applications (completed all stages)
+  const approvedApps = useMemo(() => {
+    return apps.filter((a) => isApproved(a));
+  }, [apps]);
+
   const evcs = useMemo(
-    () => apps.filter((a) => stage(a) === 'EVC'),
-    [apps]
+    () => activeApps.filter((a) => R[a.rt]?.[a.i] === 'EVC'),
+    [activeApps]
   );
 
-  // 2. Undertakings RBAC filter:
-  // - Bureau: Views all
-  // - Regional Officers: View only their assigned region
-  // - Committee: Active undertakings requiring review (status < 2)
   const ul = useMemo(() => {
     return U.filter((u) => {
       if (role === 'Bureau') return true;
@@ -228,10 +265,6 @@ export function App() {
     });
   }, [U, role]);
 
-  // 3. Documents RBAC filter:
-  // - Bureau: Views all
-  // - Regional Officers: View only their assigned region
-  // - Committee: Active documents requiring review (status < 2)
   const dl = useMemo(() => {
     return D.filter((u) => {
       if (role === 'Bureau') return true;
@@ -243,9 +276,10 @@ export function App() {
   // Sorted items by urgency
   const items = useMemo(() => {
     const o: Array<{ k: string; i: string; d: number; r: string }> = [];
-    apps.forEach((a) => {
+    activeApps.forEach((a) => {
+      const s = R[a.rt]?.[a.i];
       const d = left(a);
-      o.push({ k: 'Stage: ' + stage(a), i: a.inst, d: d, r: a.reg });
+      o.push({ k: 'Stage: ' + s, i: a.inst, d: d, r: a.reg });
     });
     evcs.forEach((a) => {
       o.push({ k: 'EVC visit', i: a.inst, d: a.evc, r: a.reg });
@@ -257,15 +291,15 @@ export function App() {
       if (u.s < 2) o.push({ k: 'Document', i: u.inst, d: u.d, r: u.reg });
     });
     return o.sort((a, b) => a.d - b.d);
-  }, [apps, evcs, ul, dl, left]);
+  }, [activeApps, evcs, ul, dl, left]);
 
   // Set window.__od for Three.js ring scaling
   const overdueCount = useMemo(() => {
-    const od = apps.filter((a) => left(a) < 0).length;
+    const od = activeApps.filter((a) => left(a) < 0).length;
     const un = ul.filter((u) => u.s < 2 && u.d <= 15).length;
     const dc = dl.filter((u) => u.s < 2 && u.d <= 15).length;
     return od + un + dc;
-  }, [apps, ul, dl, left]);
+  }, [activeApps, ul, dl, left]);
 
   useEffect(() => {
     (window as any).__od = overdueCount;
@@ -346,7 +380,6 @@ export function App() {
     }
   }, [role]);
 
-
   useEffect(() => {
     loadLiveData();
   }, [loadLiveData]);
@@ -355,29 +388,29 @@ export function App() {
   // Action Handlers wired to Backend API with Toast Alerts
   // -------------------------------------------------------------
 
-  // 1. Advance stage
+  // 1. Advance stage or grant statutory approval
   const handleAdvance = async (appId: string) => {
     setActionLoading(`adv-${appId}`);
     const targetApp = A.find((x) => x.id === appId);
-    const prevStage = targetApp ? stage(targetApp) : 'Stage';
+    const stages = targetApp ? (R[targetApp.rt] || []) : [];
+    const prevStage = targetApp ? (stages[targetApp.i] || 'Stage') : 'Stage';
+    const isFinalStage = targetApp && targetApp.i === stages.length - 1;
 
     try {
       if (isLive) {
         await api.advanceApplication(appId, roleName);
         await loadLiveData();
       } else {
-        // Fallback local update
         if (targetApp) {
-          const from = stage(targetApp);
           targetApp.i++;
           targetApp.age = 0;
-          const next = stage(targetApp);
-          const eventDesc = `${targetApp.id}: ${from} completed → ${
-            next ? `moved to ${next}` : 'forwarded to competent authority for decision'
-          }`;
+          const next = R[targetApp.rt]?.[targetApp.i];
+          const eventDesc = isFinalStage
+            ? `${targetApp.id}: Final stage completed → granted statutory approval & LOA issued by ${roleName}`
+            : `${targetApp.id}: ${prevStage} completed → moved to ${next}`;
           setLOG((prev) => [
             {
-              t: '25 Oct · ' + new Date().toTimeString().slice(0, 5),
+              t: '27 Oct · ' + new Date().toTimeString().slice(0, 5),
               who: roleName,
               x: eventDesc,
             },
@@ -387,8 +420,10 @@ export function App() {
         }
       }
       showToast(
-        'Stage Completed',
-        `Application ${appId} successfully advanced from ${prevStage}`,
+        isFinalStage ? 'Application Approved' : 'Stage Completed',
+        isFinalStage
+          ? `Application ${appId} granted statutory approval & moved to Approved column`
+          : `Application ${appId} successfully advanced from ${prevStage}`,
         'success'
       );
     } catch (err: any) {
@@ -399,7 +434,7 @@ export function App() {
     }
   };
 
-  // 2. Return / Revert stage
+  // 2. Return / Revert stage in active workflow
   const handleReturn = async (appId: string) => {
     const reason = returnReasons[appId] || 'Deficiency';
     setActionLoading(`ret-${appId}`);
@@ -412,10 +447,10 @@ export function App() {
         if (o) {
           o.i = Math.max(0, o.i - 1);
           o.age = 0;
-          const eventDesc = `${o.id}: returned to ${stage(o)} · reason: ${reason}`;
+          const eventDesc = `${o.id}: returned to ${R[o.rt]?.[o.i]} · reason: ${reason}`;
           setLOG((prev) => [
             {
-              t: '25 Oct · ' + new Date().toTimeString().slice(0, 5),
+              t: '27 Oct · ' + new Date().toTimeString().slice(0, 5),
               who: roleName,
               x: eventDesc,
             },
@@ -437,7 +472,48 @@ export function App() {
     }
   };
 
-  // 3. Undertakings action (Upload / Verify)
+  // 3. Revert Approval (remands approved application back to active pipeline)
+  const handleRevertApproval = async (appId: string) => {
+    const reason = revertApprovalReasons[appId] || 'Deficiency discovered post-approval';
+    setActionLoading(`rev-${appId}`);
+    const targetApp = A.find((x) => x.id === appId);
+    const stages = targetApp ? (R[targetApp.rt] || []) : [];
+    const lastActiveStage = stages.length > 0 ? stages[stages.length - 1] : 'Scrutiny';
+
+    try {
+      if (isLive) {
+        await api.revertApplication(appId, reason, roleName);
+        await loadLiveData();
+      } else {
+        if (targetApp) {
+          targetApp.i = Math.max(0, stages.length - 1);
+          targetApp.age = 0;
+          const eventDesc = `${targetApp.id}: Statutory approval revoked by ${roleName} · remanded to ${lastActiveStage} · reason: ${reason}`;
+          setLOG((prev) => [
+            {
+              t: '27 Oct · ' + new Date().toTimeString().slice(0, 5),
+              who: roleName,
+              x: eventDesc,
+            },
+            ...prev,
+          ]);
+          setA([...A]);
+        }
+      }
+      showToast(
+        'Approval Reverted',
+        `Approval revoked for ${appId}. File returned to active ${lastActiveStage} queue (${reason})`,
+        'warn'
+      );
+    } catch (err: any) {
+      console.error('Revert approval error:', err);
+      showToast('Error Reverting Approval', err?.message || 'Action failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 4. Undertakings action (Upload / Verify)
   const handleUndertakingAction = async (idx: number, uItem: any) => {
     setActionLoading(`un-${idx}`);
     const isUpload = uItem.s === 0;
@@ -458,7 +534,7 @@ export function App() {
           }`;
           setLOG((prev) => [
             {
-              t: '25 Oct · ' + new Date().toTimeString().slice(0, 5),
+              t: '27 Oct · ' + new Date().toTimeString().slice(0, 5),
               who: roleName,
               x: eventDesc,
             },
@@ -480,7 +556,7 @@ export function App() {
     }
   };
 
-  // 4. Documents action (Upload / Verify)
+  // 5. Documents action (Upload / Verify)
   const handleDocumentAction = async (idx: number, dItem: any) => {
     setActionLoading(`dc-${idx}`);
     const isUpload = dItem.s === 0;
@@ -502,7 +578,7 @@ export function App() {
           }`;
           setLOG((prev) => [
             {
-              t: '25 Oct · ' + new Date().toTimeString().slice(0, 5),
+              t: '27 Oct · ' + new Date().toTimeString().slice(0, 5),
               who: roleName,
               x: eventDesc,
             },
@@ -524,7 +600,7 @@ export function App() {
     }
   };
 
-  // 5. Run Alert Sweep
+  // 6. Run Alert Sweep
   const handleSweep = async () => {
     setActionLoading('sweep');
     try {
@@ -540,7 +616,7 @@ export function App() {
         const n = items.filter((x) => x.d <= 15);
         if (n.length) {
           const newLogs = n.map((x) => ({
-            t: '25 Oct · ' + new Date().toTimeString().slice(0, 5),
+            t: '27 Oct · ' + new Date().toTimeString().slice(0, 5),
             who: roleName,
             x: `${lvl(x.d).split(' ')[0]} sent: ${x.k} · ${x.i}`,
           }));
@@ -548,7 +624,7 @@ export function App() {
         } else {
           setLOG((prev) => [
             {
-              t: '25 Oct · ' + new Date().toTimeString().slice(0, 5),
+              t: '27 Oct · ' + new Date().toTimeString().slice(0, 5),
               who: roleName,
               x: 'Sweep: no pending alerts',
             },
@@ -569,7 +645,7 @@ export function App() {
     }
   };
 
-  // 6. Save Configurable APH Rules
+  // 7. Save Configurable APH Rules
   const handleSaveAphRules = async (newRules: AphRulesConfig) => {
     try {
       if (isLive) {
@@ -591,7 +667,7 @@ export function App() {
     }
   };
 
-  // 7. Export Pendency Report (CSV)
+  // 8. Export Pendency Report (CSV)
   const handleExportCsv = async () => {
     setActionLoading('export-csv');
     try {
@@ -611,10 +687,11 @@ export function App() {
   };
 
   // Render chips helper
-
   const renderChips = (a: any) => {
-    return (R[a.rt] || []).map((s, j) => {
-      const cls = j < a.i ? 'done' : j === a.i ? 'on' : '';
+    const stages = R[a.rt] || [];
+    const approved = isApproved(a);
+    return stages.map((s, j) => {
+      const cls = approved || j < a.i ? 'done' : j === a.i ? 'on' : '';
       return (
         <span key={j} className={`st ${cls}`}>
           {s}
@@ -630,9 +707,7 @@ export function App() {
     document.documentElement.dataset.theme = nextTheme;
   };
 
-  // -------------------------------------------------------------
   // Three.js 3D Background Canvas Initialization
-  // -------------------------------------------------------------
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
@@ -660,7 +735,6 @@ export function App() {
       },
     };
 
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let renderer: THREE.WebGLRenderer | null = null;
     try {
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -761,110 +835,73 @@ export function App() {
 
     const m = { p: 0, v: 0, mx: 0, my: 0 };
     let lastY = window.scrollY;
-    let push = 0;
     let sc = 1;
 
     const onScroll = () => {
       const dy = window.scrollY - lastY;
       lastY = window.scrollY;
-      if (!reduced) m.v = Math.min(3, Math.abs(dy) * 0.03);
+      m.v += dy * 0.0007;
     };
+    window.addEventListener('scroll', onScroll, { passive: true });
 
-    const onMouseMove = (e: MouseEvent) => {
-      m.mx = (e.clientX / window.innerWidth - 0.5) * 2;
-      m.my = (e.clientY / window.innerHeight - 0.5) * 2;
-    };
-
-    const resize = () => {
+    const onResize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      renderer!.setSize(w, h, false);
+      renderer!.setSize(w, h);
       cam.aspect = w / h;
       cam.updateProjectionMatrix();
       bgM.uniforms.uA.value = w / h;
-      pMat.uniforms.uS.value =
-        (h * renderer!.getPixelRatio() * 0.5) / Math.tan((25 * Math.PI) / 180);
-      ring.forEach((r) => {
-        r.visible = w > 760;
-      });
     };
+    onResize();
+    window.addEventListener('resize', onResize);
 
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('mousemove', onMouseMove, { passive: true });
-    window.addEventListener('resize', resize);
-    resize();
+    let rafId: number;
 
-    const clock = new THREE.Clock();
-    let raf = 0;
+    const animate = (now: number) => {
 
-    const frame = () => {
-      raf = requestAnimationFrame(frame);
-      const dt = Math.min(clock.getDelta(), 0.05);
-      const t = clock.elapsedTime;
-      const k = 1 - Math.exp(-dt * 4);
+      m.v *= 0.94;
+      m.p += m.v;
 
-      // Lerp colors towards current palette
-      const curPal = TH[theme];
-      (['bg', 'c1', 'c2', 'c3', 'dots'] as const).forEach((colorKey) => {
-        tgt[colorKey].set(curPal[colorKey]);
-        cur[colorKey].lerp(tgt[colorKey], k);
+      const pal = TH[document.documentElement.dataset.theme as 'abyss' | 'daylight'] || TH.abyss;
+      (['bg', 'c1', 'c2', 'c3', 'dots'] as const).forEach((k) => {
+        tgt[k].set(pal[k]);
+        cur[k].lerp(tgt[k], 0.05);
       });
 
-      pMat.blending = curPal.add ? THREE.AdditiveBlending : THREE.NormalBlending;
-      pMat.needsUpdate = true;
-
-      m.v *= 0.9;
-      if (m.v < 0.01) m.v = 0;
-      push += reduced ? 0 : m.v * dt * 0.8;
-      const T = reduced ? 0 : t;
-
-      bgM.uniforms.uT.value = T;
-      bgM.uniforms.uM.value.set(m.mx, -m.my);
-      pMat.uniforms.uT.value = T;
-      pMat.uniforms.uP.value = push;
+      pMat.blending = pal.add ? THREE.AdditiveBlending : THREE.NormalBlending;
+      bgM.uniforms.uT.value = now * 0.001;
+      pMat.uniforms.uT.value = now * 0.001;
+      pMat.uniforms.uP.value = m.p;
 
       const od = (window as any).__od || 0;
-      sc += (1 + Math.min(od, 12) * 0.03 - sc) * k;
+      const tgtSc = 1 + Math.min(od * 0.03, 0.35);
+      sc += (tgtSc - sc) * 0.08;
 
       ring.forEach((r, j) => {
-        r.rotation.z += reduced ? 0 : dt * (0.08 + j * 0.04 + m.v * 0.3);
+        r.rotation.z += 0.002 * (j + 1);
         r.scale.setScalar(sc);
-        (r.material as THREE.MeshBasicMaterial).opacity = 0.55;
       });
 
-      cam.position.x +=
-        (m.mx * 0.4 * (reduced ? 0 : 1) - cam.position.x) * (1 - Math.exp(-dt * 3));
-      cam.lookAt(0, 0, 0);
       renderer!.render(scene, cam);
+      rafId = requestAnimationFrame(animate);
     };
 
-    frame();
-
-    const onVisibilityChange = () => {
-      if (document.hidden) cancelAnimationFrame(raf);
-      else {
-        clock.getDelta();
-        frame();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
+    rafId = requestAnimationFrame(animate);
 
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(rafId);
       window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('resize', resize);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('resize', onResize);
       renderer!.dispose();
     };
   }, [theme]);
 
   // -------------------------------------------------------------
-  // Views rendering matching the exact original HTML
+  // Views rendering matching the exact UI specifications
   // -------------------------------------------------------------
 
   const renderOverview = () => {
-    const ap = apps;
+    const ap = activeApps;
     const od = ap.filter((a) => left(a) < 0).length;
     const ev = evcs.filter((a) => a.evc <= 15).length;
     const un = ul.filter((u) => u.s < 2 && u.d <= 15).length;
@@ -877,6 +914,14 @@ export function App() {
         icon: FileText,
         colorClass: 'cyan',
         trend: `${ap.length} active`,
+        trendClass: 'ok',
+      },
+      {
+        label: 'Approved Applications',
+        value: approvedApps.length,
+        icon: CheckCircle2,
+        colorClass: 'green',
+        trend: `${approvedApps.length} LOA issued`,
         trendClass: 'ok',
       },
       {
@@ -943,7 +988,7 @@ export function App() {
         {/* Primary Interactive Charts */}
         <div className="charts-grid-main">
           <StageDistributionDonut
-            apps={apps}
+            apps={activeApps}
             ul={ul}
             dl={dl}
             stageFn={stage}
@@ -1044,109 +1089,266 @@ export function App() {
 
   const renderApplications = () => {
     const totalApps = apps.length;
-    const scrutinyApps = apps.filter((a) => stage(a) === 'Scrutiny').length;
-    const evcApps = apps.filter((a) => stage(a) === 'EVC').length;
-    const sacApps = apps.filter((a) => stage(a) === 'SAC/SHC').length;
-    const overdueApps = apps.filter((a) => left(a) < 0).length;
+    const scrutinyApps = activeApps.filter((a) => stage(a) === 'Scrutiny').length;
+    const evcApps = activeApps.filter((a) => stage(a) === 'EVC').length;
+    const sacApps = activeApps.filter((a) => stage(a) === 'SAC/SHC').length;
+    const overdueApps = activeApps.filter((a) => left(a) < 0).length;
 
     return (
-      <div className="glass">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <h2 style={{ margin: 0 }}>Applications · Automatic Route Workflow</h2>
-            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              Stage advancement, deficiency tracking, and escalation routing
+      <div>
+        {/* Top Header Card */}
+        <div className="glass" style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Applications · Routing & Approval Lifecycle</h2>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                Track active route progression, grant competent authority approvals, or remand approved files
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <span className="badge-glass">Total: {totalApps}</span>
+              <span className="badge-glass">Active: {activeApps.length}</span>
+              <span className="badge-glass">Scrutiny: {scrutinyApps}</span>
+              <span className="badge-glass">EVC: {evcApps}</span>
+              <span className="badge-glass">SAC: {sacApps}</span>
+              <span className="badge-glass" style={{ color: 'var(--ok)', borderColor: 'var(--ok)' }}>
+                ✓ Approved: {approvedApps.length}
+              </span>
+              {overdueApps > 0 && <span className="badge-glass danger">{overdueApps} Overdue</span>}
+            </div>
+          </div>
+
+          {/* View Mode Selector */}
+          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div className="view-mode-selector">
+              <button
+                className={`view-mode-btn ${appViewMode === 'split' ? 'active' : ''}`}
+                onClick={() => setAppViewMode('split')}
+              >
+                <Columns size={14} />
+                Split Column View
+              </button>
+              <button
+                className={`view-mode-btn ${appViewMode === 'active' ? 'active' : ''}`}
+                onClick={() => setAppViewMode('active')}
+              >
+                <FileText size={14} />
+                Active Queue ({activeApps.length})
+              </button>
+              <button
+                className={`view-mode-btn ${appViewMode === 'approved' ? 'active' : ''}`}
+                onClick={() => setAppViewMode('approved')}
+              >
+                <CheckCircle2 size={14} />
+                Approved Applications ({approvedApps.length})
+              </button>
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+              Showing {appViewMode === 'split' ? 'Both Active & Approved Columns' : appViewMode === 'approved' ? 'Approved Applications Column' : 'Active Processing Queue Column'}
             </span>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <span className="badge-glass">Total: {totalApps}</span>
-            <span className="badge-glass">Scrutiny: {scrutinyApps}</span>
-            <span className="badge-glass">EVC: {evcApps}</span>
-            <span className="badge-glass">SAC/SHC: {sacApps}</span>
-            {overdueApps > 0 && <span className="badge-glass danger">{overdueApps} Overdue</span>}
-          </div>
         </div>
 
-        <div className="w">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Institution</th>
-                <th>Route</th>
-                <th>Days in stage</th>
-                <th>Timeline</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apps.map((a) => {
-                const stages = R[a.rt] || [];
-                const last = a.i === stages.length - 1;
-                const isAdvancing = actionLoading === `adv-${a.id}`;
-                const isReturning = actionLoading === `ret-${a.id}`;
-                const currentReason = returnReasons[a.id] || 'Deficiency';
+        {/* Applications Layout (Split or Single Column) */}
+        <div className={`applications-split-layout ${appViewMode === 'split' ? 'two-col' : ''}`}>
+          {/* 1. Active Processing Pipeline Table */}
+          {(appViewMode === 'split' || appViewMode === 'active') && (
+            <div className="glass">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <h3 style={{ margin: 0, font: '600 15px var(--fd)' }}>Active Processing Queue</h3>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    Files progressing through statutory scrutiny, inspection, or committee review
+                  </span>
+                </div>
+                <span className="badge-glass">{activeApps.length} active files</span>
+              </div>
 
-                return (
-                  <tr key={a.id}>
-                    <td><strong>{a.id}</strong></td>
-                    <td>
-                      {a.inst}
-                      <br />
-                      <span className="tag">{a.reg}</span>
-                    </td>
-                    <td>{renderChips(a)}</td>
-                    <td>
-                      {(() => {
-                        const s = stage(a);
-                        return `${a.age} / ${s && SLA[s] !== undefined ? SLA[s] : 0}`;
-                      })()}
-                    </td>
-                    <td>{pill(left(a))}</td>
-                    <td>
-                      <button
-                        onClick={() => handleAdvance(a.id)}
-                        disabled={isAdvancing || isReturning}
-                        className="pri"
-                      >
-                        {isAdvancing
-                          ? 'Updating...'
-                          : last
-                          ? 'Forward for decision'
-                          : 'Complete stage'}
-                      </button>{' '}
-                      <select
-                        aria-label="Return reason"
-                        value={currentReason}
-                        onChange={(e) =>
-                          setReturnReasons((prev) => ({
-                            ...prev,
-                            [a.id]: e.target.value,
-                          }))
-                        }
-                      >
-                        <option value="Deficiency">Deficiency</option>
-                        <option value="Clarification">Clarification</option>
-                        <option value="Further verification">Further verification</option>
-                      </select>{' '}
-                      <button
-                        onClick={() => handleReturn(a.id)}
-                        disabled={isAdvancing || isReturning}
-                      >
-                        {isReturning ? 'Returning...' : 'Return'}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              <div className="w">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Institution</th>
+                      <th>Route</th>
+                      <th>Days in stage</th>
+                      <th>Timeline</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeApps.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>
+                          No applications currently in processing queue.
+                        </td>
+                      </tr>
+                    ) : (
+                      activeApps.map((a) => {
+                        const stages = R[a.rt] || [];
+                        const last = a.i === stages.length - 1;
+                        const isAdvancing = actionLoading === `adv-${a.id}`;
+                        const isReturning = actionLoading === `ret-${a.id}`;
+                        const currentReason = returnReasons[a.id] || 'Deficiency';
+
+                        return (
+                          <tr key={a.id}>
+                            <td><strong>{a.id}</strong></td>
+                            <td>
+                              {a.inst}
+                              <br />
+                              <span className="tag">{a.reg}</span>
+                            </td>
+                            <td>{renderChips(a)}</td>
+                            <td>
+                              {(() => {
+                                const s = stage(a);
+                                return `${a.age} / ${s && SLA[s] !== undefined ? SLA[s] : 0}`;
+                              })()}
+                            </td>
+                            <td>{pill(left(a))}</td>
+                            <td>
+                              <button
+                                onClick={() => handleAdvance(a.id)}
+                                disabled={isAdvancing || isReturning}
+                                className={last ? 'pri btn-approve-action' : 'pri'}
+                                title={last ? 'Grant statutory approval and issue LOA' : 'Advance to next prescribed stage'}
+                              >
+                                {isAdvancing
+                                  ? 'Updating...'
+                                  : last
+                                  ? '✓ Approve & Issue Decision'
+                                  : 'Complete stage'}
+                              </button>{' '}
+                              <select
+                                aria-label="Return reason"
+                                value={currentReason}
+                                onChange={(e) =>
+                                  setReturnReasons((prev) => ({
+                                    ...prev,
+                                    [a.id]: e.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="Deficiency">Deficiency</option>
+                                <option value="Clarification">Clarification</option>
+                                <option value="Further verification">Further verification</option>
+                              </select>{' '}
+                              <button
+                                onClick={() => handleReturn(a.id)}
+                                disabled={isAdvancing || isReturning}
+                              >
+                                {isReturning ? 'Returning...' : 'Return'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 2. Approved Applications Column / Table */}
+          {(appViewMode === 'split' || appViewMode === 'approved') && (
+            <div className="glass approved-panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <h3 style={{ margin: 0, font: '600 15px var(--fd)', color: 'var(--ok)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={16} /> Approved Applications
+                  </h3>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    Statutory Letter of Approval (LOA) granted · Officers can revoke approval if irregularities are discovered
+                  </span>
+                </div>
+                <span className="badge-approved">
+                  ✓ {approvedApps.length} Approved
+                </span>
+              </div>
+
+              <div className="w">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Institution</th>
+                      <th>Route Completed</th>
+                      <th>Status</th>
+                      <th>Revoke / Revert Reason</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {approvedApps.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>
+                          No approved applications yet. Advance files to final decision to approve.
+                        </td>
+                      </tr>
+                    ) : (
+                      approvedApps.map((a) => {
+                        const isReverting = actionLoading === `rev-${a.id}`;
+                        const currentRevertReason = revertApprovalReasons[a.id] || 'Deficiency discovered post-approval';
+
+                        return (
+                          <tr key={a.id}>
+                            <td><strong>{a.id}</strong></td>
+                            <td>
+                              {a.inst}
+                              <br />
+                              <span className="tag">{a.reg}</span>
+                            </td>
+                            <td>{renderChips(a)}</td>
+                            <td>
+                              <span className="badge-approved">
+                                ✓ Approved · LOA
+                              </span>
+                            </td>
+                            <td>
+                              <select
+                                aria-label="Revert reason"
+                                className="revert-select"
+                                value={currentRevertReason}
+                                onChange={(e) =>
+                                  setRevertApprovalReasons((prev) => ({
+                                    ...prev,
+                                    [a.id]: e.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="Deficiency discovered post-approval">Deficiency discovered</option>
+                                <option value="Clarification required by Bureau">Clarification required</option>
+                                <option value="Competent authority remand">Authority remand</option>
+                                <option value="Document authenticity discrepancy">Document discrepancy</option>
+                                <option value="Committee review request">Committee re-hearing</option>
+                              </select>
+                            </td>
+                            <td>
+                              <button
+                                className="btn-revert"
+                                onClick={() => handleRevertApproval(a.id)}
+                                disabled={isReverting}
+                                title="Revoke statutory approval and return file to active review queue"
+                              >
+                                <RotateCcw size={12} />
+                                {isReverting ? 'Reverting...' : 'Revert Approval'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="note" style={{ marginTop: '12px' }}>
+                ⚖️ <strong>Regulatory Safeguard:</strong> Reverting an approval revokes the formal LOA, records the officer's justification in the audit trail, and remands the application to the final review stage for mandatory re-verification.
+              </p>
+            </div>
+          )}
         </div>
-        <p className="note">
-          Completing a stage moves the file to the next prescribed stage. The final stage forwards
-          it to the competent authority, which takes the decision. Returns record a reason in the
-          audit trail.
-        </p>
       </div>
     );
   };
@@ -1431,114 +1633,274 @@ export function App() {
   };
 
   return (
-    <>
+    <div className="app-shell">
       {/* Three.js 3D WebGL Canvas */}
       <canvas id="gl" ref={canvasRef} aria-hidden="true" />
 
-      {/* Header */}
-      <header>
-        <b>
-          AICTE<i>.</i> Approval Monitor
-        </b>
-        <div className="ctl">
-          {/* Live Backend Indicator */}
-          <span className="status-badge" title={isLive ? 'Connected to FastAPI' : 'Local Fallback'}>
-            <span className={`status-dot ${isLive ? 'online' : 'offline'}`} />
-            {isLive ? 'Live API' : 'Mock Mode'}
-          </span>
+      {/* Left-Hand Glassmorphic Navigation Panel (Sidebar) */}
+      <aside className={`glass-sidebar ${isSidebarCollapsed ? 'collapsed' : ''} ${isMobileMenuOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          {/* Brand Header with Collapse Toggle Button */}
+          <div className="sidebar-brand-wrapper">
+            <div className="sidebar-brand">
+              <div className="sidebar-brand-icon" title="AICTE Approval & Compliance Monitor">A</div>
+              {!isSidebarCollapsed && (
+                <div className="sidebar-brand-info">
+                  <div className="sidebar-brand-text">
+                    AICTE<span>.</span> Monitor
+                  </div>
+                  <span className="sidebar-brand-sub">Approval & Compliance</span>
+                </div>
+              )}
+            </div>
 
-          <label className="tag" htmlFor="role">
-            Role
-          </label>
-          <select
-            id="role"
-            aria-label="Role"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          >
-            <option value="Bureau">Bureau</option>
-            <option value="South">Regional · South</option>
-            <option value="North">Regional · North</option>
-            <option value="West">Regional · West</option>
-            <option value="East">Regional · East</option>
-            <option value="Committee">Committee (EVC / SAC)</option>
-          </select>
+            {/* Three-lines / hamburger collapse button located directly on the left panel */}
+            <button
+              className="sidebar-collapse-btn"
+              onClick={() => {
+                if (window.innerWidth <= 900) {
+                  setIsMobileMenuOpen(false);
+                } else {
+                  setIsSidebarCollapsed(!isSidebarCollapsed);
+                }
+              }}
+              title={isSidebarCollapsed ? "Expand sidebar panel" : "Collapse sidebar panel"}
+              aria-label={isSidebarCollapsed ? "Expand sidebar panel" : "Collapse sidebar panel"}
+            >
+              <Menu size={18} />
+            </button>
+          </div>
 
-          <button
-            className="btn-settings"
-            title="Configure statutory APH SLA processing days"
-            onClick={() => setIsAphModalOpen(true)}
-          >
-            ⚙️ APH Rules
-          </button>
-
-          <button id="th" aria-label="Toggle light or dark theme" onClick={toggleTheme}>
-            <Sparkles size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-            {theme === 'abyss' ? 'Daylight' : 'Abyss'}
-          </button>
-        </div>
-      </header>
-
-      {/* Regulatory Safeguard Notice */}
-      <div className="safeguard-banner" role="status" aria-label="Regulatory Notice">
-        <span className="safeguard-tag">⚖️ Regulatory Safeguard:</span>
-        System alerts and recommendations support processing but do not replace statutory verification or decisions reserved for competent authorities.
-      </div>
-
-      {/* Main View */}
-      <main>
-        <div className="tag">
-          {isLive ? `Live Mode · Role: ${roleName}` : 'Demo data · as of 25 Oct 2026 · not live AICTE records'}
-        </div>
-        <h1>
-          Every approval, every deadline,
-          <br />
-          <span>one live view.</span>
-        </h1>
-        <p className="sub">
-          Routing, EVC scheduling, undertakings and lease validity with automatic alerts and
-          escalation. Alerts support officers; decisions stay with the competent authority.
-        </p>
-
-        {/* Section Navigation Tabs with Dynamic Badge Counts */}
-        <nav id="nav" aria-label="Sections">
-          {TABS.map((t) => {
-            let countBadge: number | null = null;
-            if (t[0] === 'ap') countBadge = apps.length;
-            else if (t[0] === 'evc') countBadge = evcs.length;
-            else if (t[0] === 'un') countBadge = ul.filter((u) => u.s < 2).length;
-            else if (t[0] === 'dc') countBadge = dl.filter((u) => u.s < 2).length;
-            else if (t[0] === 'es') countBadge = items.filter((x) => x.d <= 15).length;
-
-            return (
-              <button
-                key={t[0]}
-                aria-pressed={tab === t[0]}
-                onClick={() => setTab(t[0])}
-                className="glass-tab-btn"
+          {/* Role Switcher Card */}
+          {isSidebarCollapsed ? (
+            <div
+              className="sidebar-role-compact"
+              title={`Jurisdiction Role: ${roleName}\nClick to cycle role`}
+              onClick={() => {
+                const roles = ['Bureau', 'South', 'North', 'West', 'East', 'Committee'];
+                const nextIdx = (roles.indexOf(role) + 1) % roles.length;
+                setRole(roles[nextIdx]);
+              }}
+            >
+              <span>{role === 'Bureau' ? 'BUR' : role === 'Committee' ? 'COM' : role.slice(0, 3).toUpperCase()}</span>
+              <span
+                className={`status-dot ${isLive ? 'online' : 'offline'}`}
+                style={{ position: 'absolute', top: '5px', right: '5px', width: '6px', height: '6px' }}
+              />
+            </div>
+          ) : (
+            <div className="sidebar-role-box">
+              <div className="sidebar-role-label">
+                <span>Jurisdiction Role</span>
+                <span className={`status-dot ${isLive ? 'online' : 'offline'}`} />
+              </div>
+              <select
+                id="sidebar-role"
+                aria-label="User Role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="sidebar-role-select"
               >
-                <span>{t[1]}</span>
-                {countBadge !== null && (
-                  <span className={`tab-count-badge ${t[0] === 'es' && countBadge > 0 ? 'alert' : ''}`}>
-                    {countBadge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+                <option value="Bureau">Bureau Officer</option>
+                <option value="South">Regional · South</option>
+                <option value="North">Regional · North</option>
+                <option value="West">Regional · West</option>
+                <option value="East">Regional · East</option>
+                <option value="Committee">Committee (EVC / SAC)</option>
+              </select>
+            </div>
+          )}
 
-        {/* Dynamic View Panel */}
-        <div id="view" aria-live="polite">
-          {tab === 'ov' && renderOverview()}
-          {tab === 'ap' && renderApplications()}
-          {tab === 'evc' && renderEVCQueue()}
-          {tab === 'un' && renderUndertakings()}
-          {tab === 'dc' && renderDocuments()}
-          {tab === 'es' && renderEscalations()}
-          {tab === 'lg' && renderAuditTrail()}
+          {/* Navigation Section */}
+          {!isSidebarCollapsed && <p className="sidebar-nav-title">Workflows & Queues</p>}
+          <nav className="sidebar-nav-list" aria-label="Sidebar Navigation">
+            {TABS.map((t) => {
+              let countBadge: number | null = null;
+              let isAlert = false;
+              if (t[0] === 'ap') countBadge = activeApps.length;
+              else if (t[0] === 'evc') countBadge = evcs.length;
+              else if (t[0] === 'un') countBadge = ul.filter((u) => u.s < 2).length;
+              else if (t[0] === 'dc') countBadge = dl.filter((u) => u.s < 2).length;
+              else if (t[0] === 'es') {
+                countBadge = items.filter((x) => x.d <= 15).length;
+                isAlert = countBadge > 0;
+              }
+
+              const getIcon = () => {
+                switch (t[0]) {
+                  case 'ov':
+                    return <LayoutDashboard size={18} />;
+                  case 'ap':
+                    return <FileText size={18} />;
+                  case 'evc':
+                    return <Calendar size={18} />;
+                  case 'un':
+                    return <ShieldAlert size={18} />;
+                  case 'dc':
+                    return <FileCheck size={18} />;
+                  case 'es':
+                    return <AlertTriangle size={18} />;
+                  case 'lg':
+                    return <History size={18} />;
+                  default:
+                    return <FileText size={18} />;
+                }
+              };
+
+              return (
+                <button
+                  key={t[0]}
+                  aria-pressed={tab === t[0]}
+                  onClick={() => {
+                    setTab(t[0]);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="sidebar-nav-item"
+                  title={`${t[1]}${countBadge !== null ? ` (${countBadge})` : ''}`}
+                >
+                  <div className="sidebar-nav-left">
+                    {getIcon()}
+                    {!isSidebarCollapsed && <span>{t[1]}</span>}
+                  </div>
+                  {!isSidebarCollapsed && countBadge !== null && (
+                    <span className={`sidebar-nav-badge ${isAlert ? 'alert' : ''}`}>
+                      {countBadge}
+                    </span>
+                  )}
+                  {isSidebarCollapsed && countBadge !== null && countBadge > 0 && (
+                    <span className={`sidebar-collapsed-dot ${isAlert ? 'alert' : ''}`} />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
-      </main>
+
+        {/* Sidebar Bottom Footer */}
+        <div className="sidebar-footer">
+          {isSidebarCollapsed ? (
+            <>
+              <span
+                className="status-badge"
+                style={{ padding: '6px', justifyContent: 'center', width: '100%' }}
+                title={isLive ? 'Connected to FastAPI (Live)' : 'Mock Fallback Mode'}
+              >
+                <span className={`status-dot ${isLive ? 'online' : 'offline'}`} style={{ margin: 0 }} />
+              </span>
+
+              <button
+                id="th"
+                aria-label="Toggle light or dark theme"
+                onClick={toggleTheme}
+                title={`Toggle Theme (Current: ${theme})`}
+                style={{ padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}
+              >
+                <Sparkles size={14} />
+              </button>
+
+              <button
+                className="btn-settings"
+                style={{ padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'auto', margin: '0 auto' }}
+                title="Configure statutory APH SLA processing days"
+                onClick={() => setIsAphModalOpen(true)}
+              >
+                ⚙️
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="sidebar-footer-row">
+                <span className="status-badge" title={isLive ? 'Connected to FastAPI' : 'Local Fallback'}>
+                  <span className={`status-dot ${isLive ? 'online' : 'offline'}`} />
+                  <span style={{ fontSize: '11px' }}>{isLive ? 'Live API' : 'Mock Mode'}</span>
+                </span>
+
+                <button
+                  id="th"
+                  aria-label="Toggle light or dark theme"
+                  onClick={toggleTheme}
+                  style={{ padding: '5px 8px', fontSize: '11px' }}
+                >
+                  <Sparkles size={12} style={{ verticalAlign: 'middle', marginRight: '3px' }} />
+                  {theme === 'abyss' ? 'Daylight' : 'Abyss'}
+                </button>
+              </div>
+
+              <button
+                className="btn-settings"
+                style={{ width: '100%', justifyContent: 'center', fontSize: '12px' }}
+                title="Configure statutory APH SLA processing days"
+                onClick={() => setIsAphModalOpen(true)}
+              >
+                ⚙️ Configure APH Rules
+              </button>
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="app-main-content">
+        {/* Top Header Bar */}
+        <header className="main-topbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+            <div>
+              <span className="tag" style={{ fontSize: '11px' }}>
+                AICTE Regulatory Portal · Role: {roleName}
+              </span>
+              <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>
+                {TABS.find((t) => t[0] === tab)?.[1]}
+              </h2>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="badge-glass">
+              {activeApps.length} Active · {approvedApps.length} Approved
+            </span>
+          </div>
+        </header>
+
+        {/* Regulatory Safeguard Notice */}
+        <div className="safeguard-banner" role="status" aria-label="Regulatory Notice">
+          <span className="safeguard-tag">⚖️ Regulatory Safeguard:</span>
+          System alerts and recommendations support processing but do not replace statutory verification or decisions reserved for competent authorities.
+        </div>
+
+        {/* Main Body */}
+        <main className="main-body">
+          <div className="tag" style={{ marginBottom: '8px' }}>
+            {isLive ? `Live Mode · Role: ${roleName}` : 'Demo data · as of 25 Oct 2026 · not live AICTE records'}
+          </div>
+          <h1 style={{ marginTop: 0 }}>
+            Every approval, every deadline,
+            <br />
+            <span>one live view.</span>
+          </h1>
+          <p className="sub" style={{ marginBottom: '24px' }}>
+            Routing, EVC scheduling, undertakings and lease validity with automatic alerts and
+            escalation. Alerts support officers; decisions stay with the competent authority.
+          </p>
+
+          {/* Dynamic View Panel */}
+          <div id="view" aria-live="polite">
+            {tab === 'ov' && renderOverview()}
+            {tab === 'ap' && renderApplications()}
+            {tab === 'evc' && renderEVCQueue()}
+            {tab === 'un' && renderUndertakings()}
+            {tab === 'dc' && renderDocuments()}
+            {tab === 'es' && renderEscalations()}
+            {tab === 'lg' && renderAuditTrail()}
+          </div>
+        </main>
+      </div>
 
       {/* Configurable APH Rules Modal */}
       <AphRulesModal
@@ -1551,8 +1913,7 @@ export function App() {
 
       {/* Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-
-    </>
+    </div>
   );
 }
 
